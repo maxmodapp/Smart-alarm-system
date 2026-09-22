@@ -1,0 +1,44 @@
+# Expo / React Native dependencies and build output
+node_modules/
+android-app/.expo/
+android-app/dist/
+android-app/android/
+android-app/ios/
+*.apk
+*.aab
+
+# Local credentials
+**/secrets.h
+.env
+.env.*
+!.env.example
+
+# Firmware build output
+**/out/
+*.bin
+*.elf
+*.hex
+*.lst
+*.map
+*.o
+*.d
+
+# Original source material; curated content lives in android-app/, firmware/, and docs/
+/Aplicación Android/
+/Codigo Educiaa/
+/Esp32-CAM/
+/Extras/
+/imagenes/
+/local-archive/
+
+# Archives and temporary files
+*.rar
+*.zip
+.tmp-*/
+
+# Operating system / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log

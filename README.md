@@ -4,9 +4,7 @@ An Android application and IoT platform for monitoring and controlling a physica
 
 This academic project was developed for **Project Workshop I — Computer Engineering, National University of La Plata (UNLP)**. It combines an EDU-CIAA-NXP board, an ESP32-CAM, and PIR motion sensors. This repository is structured as a portfolio presentation, with a particular focus on the mobile application and end-to-end integration.
 
-> **Status:** functional academic prototype. It operates over a local Wi-Fi network and is not intended to be a production-ready security product.
-
-## App demo
+## Android app demo
 
 <table>
   <tr>
@@ -21,7 +19,26 @@ This academic project was developed for **Project Workshop I — Computer Engine
   </tr>
 </table>
 
-> The screenshots document the original Spanish-language prototype. The current source uses an English interface.
+[View the complete recorded demonstrations](docs/DEMOS.md), including connection setup, the main control panel, zone management, event history, and the integrated hardware prototype.
+
+## Android application
+
+The Android application is the main user-facing component of the project. It replaces a traditional alarm keypad with a mobile control panel that brings together system control, live monitoring, configuration, and event review. The interface was designed to provide immediate visual feedback while keeping the embedded controller as the authoritative source of the alarm state.
+
+The application is organized into four primary screens:
+
+| Screen | Purpose |
+| --- | --- |
+| **Main panel** | Displays the current alarm state, hardware connection, enabled zones, and live sensor activity. It also provides the controls for arming and disarming the system. |
+| **Zones** | Enables or disables each of the three protection zones, assigns custom names, and opens the ESP32-CAM live video stream. |
+| **History** | Presents timestamped arming, disarming, and alarm-trigger events received from the embedded system. |
+| **Configuration** | Stores the ESP32-CAM IP address, WebSocket port, and automatic reconnection preference. |
+
+Built with React Native, Expo Router, and TypeScript, the app uses reusable components and tab-based navigation. Its communication and state-management layer is centralized in `store/alarm.tsx`, which manages the WebSocket lifecycle, command delivery, hardware messages, reconnection, zone state, and event history. AsyncStorage preserves connection settings and custom zone names between sessions.
+
+Commands are sent to the ESP32-CAM over WebSocket, but visible alarm-state changes are applied only after confirmation arrives from the EDU-CIAA. This avoids showing an action as successful before the physical controller has processed it. The camera view uses an embedded WebView to display the MJPEG stream served directly by the ESP32-CAM.
+
+The complete mobile source is available in [`android-app/`](android-app/), with additional implementation details in the [Android application README](android-app/README.md).
 
 ## Features
 
@@ -154,16 +171,6 @@ Wire UART TX/RX as a crossover connection and use a shared ground. Power deliver
 ## Protocol
 
 Commands are newline-terminated ASCII messages: `ARM`, `DISARM`, `GET`, `HIST`, and `z1=0|1` through `z3=0|1`. The EDU-CIAA reports its state and bitmasks over UART; the ESP32 converts them to JSON and broadcasts them over WebSocket. See [docs/PROTOCOL.md](docs/PROTOCOL.md) for the complete contract and camera endpoints.
-
-## Known limitations
-
-- The system operates over the LAN using `ws://` and `http://`; it has no authentication or encryption.
-- Wi-Fi credentials are supplied at compile time in a Git-ignored `secrets.h` file.
-- The ESP32 stores up to 120 events in RAM; history is lost after a restart.
-- The app mirrors the five-second countdown locally because the firmware does not transmit the remaining time.
-- The app does not send background push notifications.
-- Sensors are wired, and this version is limited to three zones.
-- Full prototype recordings are available in [docs/videos](docs/videos) and indexed in [docs/DEMOS.md](docs/DEMOS.md).
 
 ## Portfolio contribution
 

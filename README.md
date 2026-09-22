@@ -1,8 +1,8 @@
 # G12 Smart Alarm System
 
-An Android application and IoT platform for monitoring and controlling a physical, three-zone alarm system with live video and real-time status updates.
+A distributed three-zone alarm system controlled and monitored in real time from an Android application. The system combines live video, motion detection, remote arming and disarming, configurable security zones, and event history in a single mobile interface.
 
-This academic project was developed for **Project Workshop I — Computer Engineering, National University of La Plata (UNLP)**. It combines an EDU-CIAA-NXP board, an ESP32-CAM, and PIR motion sensors. This repository is structured as a portfolio presentation, with a particular focus on the mobile application and end-to-end integration.
+The physical prototype integrates an EDU-CIAA-NXP real-time controller, an ESP32-CAM network gateway, three PIR motion sensors, and a passive buzzer. It was developed for **Project Workshop I — Computer Engineering, National University of La Plata (UNLP)** and covers the complete path from sensor acquisition and embedded control to wireless communication and mobile interaction.
 
 ## Android app demo
 
@@ -70,20 +70,61 @@ flowchart LR
     CIAA --> BUZ
 ```
 
-The **EDU-CIAA** is the source of truth for the alarm state. The **ESP32-CAM** bridges UART and the local network, stores an in-memory circular event history, and serves the camera stream. The **Android app** provides the user experience and waits for hardware confirmation before updating its state.
+### Component responsibilities
 
-The UART protocol retains its original Spanish state identifiers for firmware compatibility:
+#### Android application
 
-```text
-DESARMADA ── ARM ──> ARMANDO (5 s) ──> ARMADA
-    ^                                      │
-    └────────────── DISARM ────────────────┤
-                                           │ motion in an enabled zone
-                                           v
-                                       DISPARO
-                                           │
-                                           └── DISARM ──> DESARMADA
-```
+The mobile app is the system's control and monitoring interface. It sends arming, disarming, zone-configuration, status, and history requests through a WebSocket connection. It receives the confirmed hardware state as JSON and updates the dashboard, sensor indicators, enabled zones, and event history. It also displays the live camera stream over HTTP.
+
+The app does not decide whether the alarm is armed or triggered. It requests an action and waits for the embedded controller to report the resulting state. This keeps the interface synchronized with the physical system even if a command is delayed or the connection is interrupted.
+
+#### ESP32-CAM
+
+The ESP32-CAM is the network gateway between the Android application and the EDU-CIAA. It performs four main tasks:
+
+- Connects the system to the local Wi-Fi network.
+- Hosts the WebSocket server on port `81` for commands and real-time state updates.
+- Translates WebSocket messages from the app into UART commands for the EDU-CIAA, then converts UART status messages into JSON for the app.
+- Hosts the camera service on port `80`, providing an MJPEG live stream, individual JPEG captures, and a health endpoint.
+
+The ESP32-CAM also timestamps and stores the latest alarm events in a circular in-memory history. History requests are handled directly by the ESP32-CAM instead of being forwarded to the EDU-CIAA.
+
+#### EDU-CIAA-NXP
+
+The EDU-CIAA is the real-time alarm controller and the source of truth for the system state. Its firmware implements the alarm state machine and directly interacts with the physical inputs and output. It:
+
+- Samples the three HC-SR501 PIR motion sensors every 30 ms.
+- Maintains the enabled/disabled configuration for each zone.
+- Processes arm, disarm, status, and zone commands received over UART.
+- Applies the five-second arming delay before activating surveillance.
+- Detects motion only in enabled zones while the system is armed.
+- Identifies which zone triggered the alarm.
+- Generates the passive-buzzer siren signal while the alarm is triggered.
+- Reports the current state, enabled-zone mask, active-sensor mask, and triggered zone to the ESP32-CAM over UART at 115200 baud.
+
+Keeping this logic on the EDU-CIAA means that sensor processing and alarm activation continue at the embedded level rather than depending on the Android interface.
+
+### End-to-end communication flow
+
+1. The user performs an action in the Android app, such as pressing **Arm** or changing a zone setting.
+2. The app sends the corresponding command to the ESP32-CAM through WebSocket.
+3. The ESP32-CAM forwards the command to the EDU-CIAA through UART.
+4. The EDU-CIAA processes the command, updates its state machine, and returns the complete system status.
+5. The ESP32-CAM converts that status into JSON and broadcasts it to the connected app.
+6. The app updates its interface using the confirmed state received from the hardware.
+
+Camera traffic follows a separate path: the OV2640 camera is connected directly to the ESP32-CAM, which serves the MJPEG stream to the app over HTTP without passing through the EDU-CIAA.
+
+### Alarm operating states
+
+| State | Firmware identifier | Behavior |
+| --- | --- | --- |
+| Disarmed | `DESARMADA` | The siren is off and sensor activity does not trigger the alarm. |
+| Arming | `ARMANDO` | A five-second exit delay is running before surveillance becomes active. |
+| Armed | `ARMADA` | Enabled zones are monitored; motion in one of them triggers the alarm. |
+| Triggered | `DISPARO` | The triggering zone is reported and the siren remains active until the system is disarmed. |
+
+The identifiers remain in Spanish because they are part of the communication contract implemented by the original embedded firmware. Their user-facing meaning is presented in English throughout the documentation.
 
 ## Technology stack
 
@@ -172,7 +213,7 @@ Wire UART TX/RX as a crossover connection and use a shared ground. Power deliver
 
 Commands are newline-terminated ASCII messages: `ARM`, `DISARM`, `GET`, `HIST`, and `z1=0|1` through `z3=0|1`. The EDU-CIAA reports its state and bitmasks over UART; the ESP32 converts them to JSON and broadcasts them over WebSocket. See [docs/PROTOCOL.md](docs/PROTOCOL.md) for the complete contract and camera endpoints.
 
-## Portfolio contribution
+## Contributions
 
 **Máximo Dappiano** led development of the Android application, user interface, event history, ESP32-CAM firmware, HTTP/WebSocket communication, and final system integration. The complete project also involved electronics design, low-level firmware, PCB manufacturing, and validation on physical hardware.
 
